@@ -24,23 +24,64 @@ Real-world music recommenders estimate how likely a listener is to enjoy a song 
 - `Song`: `id`, `title`, `artist`, `genre`, `mood`, `energy`, `tempo_bpm`, `valence`, `danceability`, and `acousticness`.
 - `UserProfile`: `favorite_genre`, `favorite_mood`, `target_energy`, and `likes_acoustic`.
 
+**Example taste profile**
+
+```python
+user_prefs = {
+    "genre": "pop",
+    "mood": "happy",
+    "energy": 0.68,
+    "likes_acoustic": False,
+}
+```
+
+This profile represents a listener who enjoys pop, especially happy music, prefers a moderate-to-lively energy level, and does not prefer strongly acoustic arrangements. It is specific enough to distinguish quiet chill/lofi and aggressive rock from the user's taste, while the middle energy target (rather than an extreme `1.0`) allows several styles and energy levels to remain eligible. The functional dictionary keys correspond to the `UserProfile` fields: `favorite_genre`, `favorite_mood`, `target_energy`, and `likes_acoustic`.
+
 **Scoring rule**
 
-Each `Song` will receive a weighted total score from several feature matches. Categorical features use exact-match contributions: `genre` and `mood` each earn a fixed bonus only when they equal the user's favorites.
+### Finalized Algorithm Recipe
 
-For the numerical `energy` feature, the score rewards closeness rather than a universally high or low value. Both values are on the normalized `0.0–1.0` scale, so:
+```mermaid
+flowchart LR
+    A[User preferences] --> C[Recommender]
+    B[CSV catalog] --> D[Load every Song]
+    D --> E[Score one Song]
+    A --> E
+    E --> F[Store score and song]
+    F --> G{More songs?}
+    G -->|Yes| E
+    G -->|No| H[Sort by descending score]
+    H --> I[Break ties by lower song ID]
+    I --> J[Top K recommendations]
+```
 
-`energy_match = 1 - |song.energy - user.target_energy|`
+The flow begins with the user's preferences and the complete CSV catalog. For each individual song, the recommender compares genre, mood, energy, and acousticness with the profile, calculates the total score, and stores that score with the song. After every catalog row has been evaluated, the results are sorted by descending score; a lower song ID breaks ties, and only the first `k` songs are returned.
 
-This produces `1.0` for an exact match and a score that decreases in proportion to the absolute difference. If the feature ever uses a range wider than `0.0–1.0`, the formula will instead divide the difference by that range: `1 - |song_value - target_value| / value_range`.
+The recommender will give every catalog song the following four-part score. Exact genre and mood matches provide meaningful bonuses, while energy and acousticness add smaller continuous or directional adjustments:
 
-The intended overall formula is:
+- **Genre match: +2.0 points** when `song.genre` equals `user.favorite_genre`.
+- **Mood match: +1.0 point** when `song.mood` equals `user.favorite_mood`.
+- **Energy similarity: up to +1.5 points**, calculated from closeness to `user.target_energy`:
+  `energy_points = 1.5 × (1 - |song.energy - user.target_energy|)`
+- **Acoustic preference: +0.5 points** when the acousticness direction agrees with `user.likes_acoustic`:
+  +0.5 if the user likes acoustic and `song.acousticness >= 0.50`, or if the user does not like acoustic and `song.acousticness < 0.50`.
 
-`total_score = (genre_weight × genre_match) + (mood_weight × mood_match) + (energy_weight × energy_match) + (acoustic_weight × acoustic_match)`
+The maximum score is 5.0. The complete formula is:
 
-Here, each match is either `1.0` or `0.0`, except `energy_match`, which is continuous between `0.0` and `1.0`. `acoustic_match` will reflect `likes_acoustic` when implemented: a user who likes acoustic songs will favor higher `acousticness`, while a user who does not will favor lower values. This plan leaves the weights tunable and defers implementation of the acoustic formula until a clear preference range is defined.
+`total_score = genre_points + mood_points + energy_points + acoustic_points`
 
-The recommender will score every song, sort by descending `total_score`, and return the top `k` songs. The other numerical fields (`tempo_bpm`, `valence`, and `danceability`) are retained for a richer future profile and for explaining catalog data, but are not required in the first scoring rule.
+Genre is weighted highest because matching the broad listening category is a strong signal. Mood is worth half a genre match, providing an important but less dominant preference. Energy contributes up to 1.5 points and rewards similar values continuously; for example, target energy `0.68` gives a `0.82`-energy song `1.5 × (1 - 0.14) = 1.29` points. Acoustic preference is a 0.5-point tie-breaker rather than a major category. These weights may be tuned later, but this is the starting recipe.
+
+The recommender will calculate the score for every song, sort by descending `total_score`, and return the top `k` songs. If scores tie, songs may be ordered by lower `id` as a deterministic tie-breaker. For example, a pop/happy song with 0.82 energy and 0.18 acousticness can earn 2.0 genre + 1.0 mood + about 1.29 energy + 0.5 acoustic = 4.79 points, while a lofi/chill song receives only its energy and potentially its acoustic points.
+
+The fields `tempo_bpm`, `valence`, and `danceability` remain available for future scoring and explanations, but are not part of this finalized starting recipe.
+
+**Potential biases**
+
+- The genre bonus is the largest match bonus, so the system may over-prioritize the favorite genre and miss strong cross-genre songs that match the user's mood or energy.
+- Mood is treated as a single exact label; a song with a related mood may receive no mood points even when it could suit the user.
+- The acousticness threshold is a rough binary split that may not represent preferences in the middle of the `0.0–1.0` range.
+- A fixed `0.68` energy target and the catalog's limited genre coverage may make recommendations narrow or favor whichever styles are most represented.
 
 ---
 
@@ -130,5 +171,3 @@ Write 1 to 2 paragraphs here about what you learned:
 
 - about how recommenders turn data into predictions
 - about where bias or unfairness could show up in systems like this
-
-
