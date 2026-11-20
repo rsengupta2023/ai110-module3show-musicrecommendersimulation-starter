@@ -61,29 +61,19 @@ Prompts:
 
 ## 6. Limitations and Bias 
 
-Where the system struggles or behaves unfairly. 
-
-Prompts:  
-
-- Features it does not consider  
-- Genres or moods that are underrepresented  
-- Cases where the system overfits to one preference  
-- Ways the scoring might unintentionally favor some users  
+The `+2.0` genre and `+1.0` exact mood bonuses can create a filter bubble, repeatedly favoring users whose favorite labels are well represented and causing related or cross-genre songs to rank lower. Because the catalog has only 18 songs and stronger genre coverage for categories such as lofi and pop, users who prefer genres with fewer or no exact matches receive less variety. The energy calculation rewards closeness but clamps every gap score at zero, so it does not distinguish a modest mismatch from a large mismatch after the first unit of distance. Mood matching also ignores related moods, and the `0.50` acousticness cutoff is a rough preference rule that can ignore nuanced tastes.
 
 ---
 
 ## 7. Evaluation  
 
-How you checked whether the recommender behaved as expected. 
+We tested four profiles: High-Energy Pop, Chill Lofi, Deep Intense Rock, and a conflicting blues/sad/high-energy case. High-Energy Pop and Chill Lofi confirmed that a matching genre and mood can strongly lead the list; Library Rain and Midnight Coding ranked at the top for Lofi, while Sunrise City led for Pop.
 
-Prompts:  
+High-Energy Pop and Deep Intense Rock both receive high-energy recommendations, but Gym Hero appears more strongly for Pop because it matches the pop genre, whereas it only matches the intense mood for the Rock profile. This is the main reason Gym Hero can appear for a user who wants Happy Pop: it is a pop song with high energy, even though its mood is intense rather than happy.
 
-- Which user profiles you tested  
-- What you looked for in the recommendations  
-- What surprised you  
-- Any simple tests or comparisons you ran  
+Chill Lofi and Deep Intense Rock produced nearly opposite recommendations because their genre, mood, and energy preferences differ. The Lofi profile favored quiet acoustic songs around `0.35–0.42` energy, while Rock favored Storm Runner at `0.91` energy. High-Energy Pop and the conflicting sad/high-energy profile differed because Pop had a direct genre and mood match, while the edge profile had no catalog song labeled `sad`; therefore, the blues genre match in Velvet Smoke outweighed its imperfect mood and energy combination.
 
-No need for numeric metrics unless you created some.
+The main surprise was that exact mood matching can leave a strong genre or energy result ranked first even when the user's emotional preference is missing. The weight-shift test, which halved genre and doubled energy, kept Sunrise City first but changed the surrounding order, showing that energy primarily affects variety and tie-breaking while genre and mood still establish a clear leader.
 
 ---
 
